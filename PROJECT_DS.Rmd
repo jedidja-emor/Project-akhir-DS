@@ -1,0 +1,128 @@
+---
+title: "Project DS"
+author: "VERONIKA HANA SELFRIDA SINAGA"
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Membuat aplikasi web sederhana untuk menampilkan diagram komentar masyarakat tentang movie di bioskop. Saya akan mencoba membuat dan memodifikasi dengan menggunakan dokumen R Markdown sebagai *sandbox*. Menjalankan beberapa package sebagai berikut.
+
+```{r}
+library(shiny) #package shiny
+library(syuzhet) #package analisis sentimen
+library(wordcloud) #package wordcloud
+library(tm)
+
+
+#Membaca/membuka file
+data <- read.csv("comments_movie.csv", stringsAsFactors =  FALSE)
+
+#mengubah file csv menjadi vektor karakter
+review <- as.character(data$comments)
+
+# Untuk mendapatkan skor sentimen
+get_nrc_sentiment('happy')
+get_nrc_sentiment('excitment')
+
+s <- get_nrc_sentiment(review)
+
+#menggabungkan kolom teks dan sentimen
+review_sentiment <- cbind(data$comments,s)
+
+```
+
+# script ui (user interface)
+Terdapat berbagai jenis tata letak laman antarmuka yang disediakan oleh paket `shiny` maupun oleh paket tambahan lainnya. Dalam kasus ini akan menggunakan `fluidPage()` dan `sidebarLayout()`  untuk mengatur tata letak laman aplikasi web. Serta tambahkan `plotOutput()` pada `mainPanel()` dengan "asPlot"` sebagai argumen. 
+
+```{r}
+ui <- fluidPage(
+    
+    # Application title
+    titlePanel("Analisis Sentimen Untuk Ulasan Movie"),
+    
+     sidebarLayout(
+        sidebarPanel(
+           
+        ),
+        
+        mainPanel(
+            plotOutput("asPlot")
+        )
+    )
+)
+```
+
+# script server
+Disini kita harus membuat obyek R berupa fungsi dengan tiga argumen, yaitu: `input`, `output`, dan `session`. Kemudian di dalam badan fungsi tersebut kita akan menempatkan seluruh kode pemrosesan data. Kita akan menggunakan `input` yang telah dituliskan pada bagian `ui` sebagai "bahan baku" dan kemudian menampilkan hasilnya pada `output`.
+
+```{r}
+server <- function(input, output, session) {
+    as_data <- reactive({
+        
+        input$Update
+        isolate({
+            withProgress({
+                setProgress(message = "Processing analisis...")
+                as_file <- input$as
+                if(!is.null(as_file)){
+                    as_text <- readLines(as_file$datapath)
+                }
+                else
+                {
+                    as_text <- "A Barplot is an immage made of words that..."
+                }
+                
+     })
+        })
+    })
+    
+    barplot_rep <- repeatable(barplot)
+    
+    output$asPlot <- renderPlot({
+     withProgress({
+      setProgress(message = "Creating barplot...")
+      barplot(colSums(s),col = rainbow(10),ylab = 'count',main = 'Barplot')
+        })
+    
+       })
+    
+}
+
+```
+
+
+# script Run APP
+selesai menuliskan komponen `global`, `ui`, dan `server`
+Sekarang mencoba menjalankan aplikasi web yang telah di kembangkan!
+```{r}
+shinyApp(ui = ui, server = server, options = list(height = "500px"))
+```
+
+# wordcloud
+Berfungsi untuk menampilkan data teks secara visual yang berisi gambaran frekuensi kata-kata.
+```{r}
+# Pembuatan wordcloud
+comm <- read.csv("comments_movie.csv", header = TRUE)
+corpus <- Corpus(VectorSource(comm$comments))
+corpus[[1]][1]
+
+#convert the text to lower case
+corpus <- tm_map(corpus, content_transformer(tolower))
+corpus <- tm_map(corpus, removeNumbers)
+corpus <- tm_map(corpus, removeWords, stopwords("english"))
+corpus <- tm_map(corpus, removePunctuation)
+corpus <- tm_map(corpus, stripWhitespace)
+corpus <- tm_map(corpus, removeWords, c("get", "told", "gave", "took", "get", "can", "said", "asked", "will", "even", "spoke", "got", "really"))
+corpus[[1]][1]
+
+tdm <- TermDocumentMatrix(corpus)
+m <- as.matrix(tdm)
+v <- sort(rowSums(m),decreasing = TRUE)
+d <- data.frame(word = names(v), freq=v)
+
+wordcloud(d$word, d$freq, random.order = FALSE, rot.per = 0.3, scale = c(4,.5),max.words = 101,colors = brewer.pal(8,"Dark2"))
+title(main = "Word Cloud - Ulasan Film", font.main = 1, cex.main = 1.5)
+```
